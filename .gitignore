@@ -1,0 +1,18 @@
+﻿# Python
+*.pyc
+__pycache__/
+db.sqlite3
+
+# Django
+*.log
+staticfiles/
+media/
+
+# Venv
+venv/
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
