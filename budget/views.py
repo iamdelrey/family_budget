@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, OpenApiExample, OpenApiParameter
 
 
 class FamilyMemberViewSet(viewsets.ModelViewSet):
@@ -55,6 +57,14 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
 
 class RegisterView(APIView):
+
+    @extend_schema(
+        request=RegisterSerializer,
+        responses={
+            201: OpenApiResponse(description="Tokens successfully created"),
+            400: OpenApiResponse(description="Validation error")
+        }
+    )
     def post(self, request, *args, **kwargs):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
