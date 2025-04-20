@@ -16,6 +16,7 @@ from .permissions import IsOwnerOrReadOnly
 from .serializers import FamilyMemberSerializer, BudgetCategorySerializer, TransactionSerializer
 from .serializers_register import RegisterSerializer
 from .serializers_family import CreateFamilySerializer
+from drf_spectacular.utils import OpenApiParameter
 
 
 class FamilyMemberViewSet(viewsets.ModelViewSet):
@@ -178,29 +179,14 @@ class CreateFamilyView(APIView):
         return Response(serializer.errors, status=400)
 
 
-class MyFamilyView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        try:
-            membership = FamilyMembership.objects.select_related('family').get(user=request.user)
-            family = membership.family
-            return Response({
-                "id": family.id,
-                "name": family.name,
-                "created_by": family.created_by.username,
-                "role": membership.role,
-            })
-        except FamilyMembership.DoesNotExist:
-            return Response({"detail": "You are not a member of any family"}, status=404)
-
-
 class CurrentFamilyView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        responses={200: OpenApiResponse(description="Current family info")},
+    )
     def get(self, request):
         membership = FamilyMembership.objects.filter(user=request.user).select_related('family').first()
-
         if not membership:
             return Response({'detail': 'User is not part of any family'}, status=404)
 
@@ -210,3 +196,31 @@ class CurrentFamilyView(APIView):
             'created_by': membership.family.created_by.username,
             'role': membership.role,
         })
+
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'name': {'type': 'string', 'description': 'New family name'},
+                },
+                'required': ['name'],
+            }
+        },
+        responses={200: OpenApiResponse(description="Family renamed")},
+    )
+    def patch(self, request):
+        membership = FamilyMembership.objects.filter(user=request.user).select_related('family').first()
+        if not membership:
+            return Response({'detail': 'User is not part of any family'}, status=404)
+
+        if membership.role != 'head':
+            return Response({'detail': 'Only the head can update family'}, status=403)
+
+        new_name = request.data.get('name')
+        if not new_name:
+            return Response({'detail': 'New name is required'}, status=400)
+
+        membership.family.name = new_name
+        membership.family.save()
+        return Response({'detail': 'Family updated', 'name': new_name})
