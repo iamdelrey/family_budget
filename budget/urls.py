@@ -2,7 +2,7 @@
 from rest_framework.routers import DefaultRouter
 
 from .views import FamilyMemberViewSet, BudgetCategoryViewSet, TransactionViewSet, RegisterView, MeView
-from .views import InviteCreateView, JoinFamilyView
+from .views import InviteCreateView, JoinFamilyView, CreateFamilyView
 
 router = DefaultRouter()
 router.register(r'familymembers', FamilyMemberViewSet)
@@ -15,4 +15,5 @@ urlpatterns = [
     path('me/', MeView.as_view(), name='me'),
     path('invite/', InviteCreateView.as_view(), name='invite-create'),
     path('join/', JoinFamilyView.as_view(), name='join-family'),
+    path('family/create/', CreateFamilyView.as_view(), name='create-family'),
 ]

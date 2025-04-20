@@ -15,6 +15,7 @@ from .models import InviteCode, Family, FamilyMembership
 from .permissions import IsOwnerOrReadOnly
 from .serializers import FamilyMemberSerializer, BudgetCategorySerializer, TransactionSerializer
 from .serializers_register import RegisterSerializer
+from .serializers_family import CreateFamilySerializer
 
 
 class FamilyMemberViewSet(viewsets.ModelViewSet):
@@ -116,6 +117,12 @@ class MeView(APIView):
 class InviteCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Invite code successfully created"),
+            403: OpenApiResponse(description="User is not the head of a family"),
+        }
+    )
     def post(self, request):
         user = request.user
         try:
@@ -153,3 +160,19 @@ class JoinFamilyView(APIView):
         invite.save()
 
         return Response({'detail': 'Successfully joined the family!'})
+
+
+class CreateFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=CreateFamilySerializer,
+        responses={201: OpenApiResponse(description="Family created")},
+    )
+    def post(self, request):
+        serializer = CreateFamilySerializer(data=request.data, context={'request': request})  # 💥 тут
+        if serializer.is_valid():
+            family = serializer.save()
+            FamilyMembership.objects.create(user=request.user, family=family, role='head')
+            return Response({"detail": "Family created", "family_id": family.id}, status=201)
+        return Response(serializer.errors, status=400)
