@@ -1,5 +1,6 @@
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
+import uuid
 
 
 class BudgetCategory(models.Model):
@@ -30,3 +31,33 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.amount} - {self.category.name}"
+
+
+class Family(models.Model):
+    name = models.CharField(max_length=255)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
+
+
+class FamilyMembership(models.Model):
+    ROLE_CHOICES = (
+        ('owner', 'Owner'),
+        ('member', 'Member'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    family = models.ForeignKey(Family, on_delete=models.CASCADE)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='member')
+
+    def __str__(self):
+        return f'{self.user.username} in {self.family.name}'
+
+
+class InviteCode(models.Model):
+    code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    family = models.ForeignKey(Family, on_delete=models.CASCADE)
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return str(self.code)

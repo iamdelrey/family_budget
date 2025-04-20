@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
@@ -9,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import FamilyMember, BudgetCategory, Transaction
+from .models import InviteCode, Family, FamilyMembership
 from .permissions import IsOwnerOrReadOnly
 from .serializers import FamilyMemberSerializer, BudgetCategorySerializer, TransactionSerializer
 from .serializers_register import RegisterSerializer
@@ -77,3 +80,76 @@ class RegisterView(APIView):
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+        })
+
+    def patch(self, request):
+        user = request.user
+        data = request.data
+        if 'username' in data:
+            user.username = data['username']
+        if 'email' in data:
+            user.email = data['email']
+        user.save()
+        return Response({
+            "message": "User updated successfully",
+            "username": user.username,
+            "email": user.email,
+        })
+
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response({"message": "User deleted"}, status=status.HTTP_204_NO_CONTENT)
+
+
+class InviteCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        try:
+            family = Family.objects.get(created_by=user)
+        except Family.DoesNotExist:
+            return Response({'detail': 'You are not the head of a family'}, status=403)
+
+        invite = InviteCode.objects.create(family=family)
+        return Response({'code': str(invite.code)})
+
+
+class JoinFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        code = request.data.get('code')
+        if not code:
+            return Response({'detail': 'Invite code is required'}, status=400)
+
+        try:
+            invite = InviteCode.objects.get(code=UUID(code), is_used=False)
+        except InviteCode.DoesNotExist:
+            return Response({'detail': 'Invalid or used code'}, status=400)
+
+        # Check if user already in family
+        if FamilyMembership.objects.filter(user=request.user, family=invite.family).exists():
+            return Response({'detail': 'Already a member of this family'}, status=400)
+
+        FamilyMembership.objects.create(
+            user=request.user,
+            family=invite.family,
+            role='member'
+        )
+        invite.is_used = True
+        invite.save()
+
+        return Response({'detail': 'Successfully joined the family!'})
