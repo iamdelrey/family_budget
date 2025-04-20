@@ -176,3 +176,37 @@ class CreateFamilyView(APIView):
             FamilyMembership.objects.create(user=request.user, family=family, role='head')
             return Response({"detail": "Family created", "family_id": family.id}, status=201)
         return Response(serializer.errors, status=400)
+
+
+class MyFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            membership = FamilyMembership.objects.select_related('family').get(user=request.user)
+            family = membership.family
+            return Response({
+                "id": family.id,
+                "name": family.name,
+                "created_by": family.created_by.username,
+                "role": membership.role,
+            })
+        except FamilyMembership.DoesNotExist:
+            return Response({"detail": "You are not a member of any family"}, status=404)
+
+
+class CurrentFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        membership = FamilyMembership.objects.filter(user=request.user).select_related('family').first()
+
+        if not membership:
+            return Response({'detail': 'User is not part of any family'}, status=404)
+
+        return Response({
+            'id': membership.family.id,
+            'name': membership.family.name,
+            'created_by': membership.family.created_by.username,
+            'role': membership.role,
+        })
