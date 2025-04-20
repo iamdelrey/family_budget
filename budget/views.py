@@ -1,17 +1,17 @@
-from rest_framework import viewsets, filters, generics
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework import viewsets, filters
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .models import FamilyMember, BudgetCategory, Transaction
+from .permissions import IsOwnerOrReadOnly
 from .serializers import FamilyMemberSerializer, BudgetCategorySerializer, TransactionSerializer
 from .serializers_register import RegisterSerializer
-from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
-from .permissions import IsOwnerOrReadOnly
-from django.contrib.auth.models import User
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
-from drf_spectacular.utils import extend_schema
-from drf_spectacular.utils import OpenApiResponse, OpenApiExample, OpenApiParameter
 
 
 class FamilyMemberViewSet(viewsets.ModelViewSet):
