@@ -1,8 +1,18 @@
 ﻿from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import FamilyMemberViewSet, BudgetCategoryViewSet, TransactionViewSet, RegisterView, MeView
-from .views import InviteCreateView, JoinFamilyView, CreateFamilyView, CurrentFamilyView
+from .views import (
+    FamilyMemberViewSet,
+    BudgetCategoryViewSet,
+    TransactionViewSet,
+    RegisterView,
+    MeView,
+    InviteCreateView,
+    JoinFamilyView,
+    CreateFamilyView,
+    CurrentFamilyView,
+    FamilyMembersView,
+)
 
 router = DefaultRouter()
 router.register(r'familymembers', FamilyMemberViewSet)
@@ -17,5 +27,5 @@ urlpatterns = [
     path('join/', JoinFamilyView.as_view(), name='join-family'),
     path('family/create/', CreateFamilyView.as_view(), name='create-family'),
     path('family/me/', CurrentFamilyView.as_view(), name='family-me'),
-
+    path('family/members/', FamilyMembersView.as_view(), name='family-members'),
 ]

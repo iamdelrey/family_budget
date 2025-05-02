@@ -16,7 +16,8 @@ from .permissions import IsOwnerOrReadOnly
 from .serializers import FamilyMemberSerializer, BudgetCategorySerializer, TransactionSerializer
 from .serializers_register import RegisterSerializer
 from .serializers_family import CreateFamilySerializer
-from drf_spectacular.utils import OpenApiParameter
+from rest_framework import serializers
+from .models import FamilyMembership
 
 
 class FamilyMemberViewSet(viewsets.ModelViewSet):
@@ -25,6 +26,28 @@ class FamilyMemberViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return FamilyMember.objects.all().order_by('id')
+
+class FamilyMembersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        membership = FamilyMembership.objects.filter(user=request.user).select_related('family').first()
+        if not membership:
+            return Response({'detail': 'User is not part of any family'}, status=404)
+
+        members = FamilyMembership.objects.filter(family=membership.family).select_related('user')
+        serializer = FamilyMemberDetailSerializer(members, many=True)
+        return Response(serializer.data)
+
+
+
+class FamilyMemberDetailSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username')
+    email = serializers.EmailField(source='user.email')
+
+    class Meta:
+        model = FamilyMembership
+        fields = ['id', 'username', 'email', 'role']
 
 
 class BudgetCategoryViewSet(viewsets.ModelViewSet):
