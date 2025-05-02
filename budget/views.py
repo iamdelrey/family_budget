@@ -348,3 +348,27 @@ class ChangeFamilyMemberRoleView(APIView):
         target_membership.role = new_role
         target_membership.save()
         return Response({'detail': 'Role updated'})
+
+
+class LeaveFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Left the family successfully"),
+            403: OpenApiResponse(description="Head cannot leave without assigning new head"),
+            404: OpenApiResponse(description="User not in family"),
+        }
+    )
+    def post(self, request):
+        user = request.user
+
+        membership = FamilyMembership.objects.filter(user=user).first()
+        if not membership:
+            return Response({'detail': 'You are not in any family'}, status=404)
+
+        if membership.role == 'head':
+            return Response({'detail': 'Head of family cannot leave. Assign new head first.'}, status=403)
+
+        membership.delete()
+        return Response({'detail': 'You have left the family'}, status=200)
