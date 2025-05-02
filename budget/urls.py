@@ -12,6 +12,7 @@ from .views import (
     CreateFamilyView,
     CurrentFamilyView,
     FamilyMembersView,
+    RemoveFamilyMemberView
 )
 
 router = DefaultRouter()
@@ -28,4 +29,6 @@ urlpatterns = [
     path('family/create/', CreateFamilyView.as_view(), name='create-family'),
     path('family/me/', CurrentFamilyView.as_view(), name='family-me'),
     path('family/members/', FamilyMembersView.as_view(), name='family-members'),
+    path('family/members/remove/', RemoveFamilyMemberView.as_view(), name='remove-family-member'),
+
 ]

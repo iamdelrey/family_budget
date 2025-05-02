@@ -247,3 +247,48 @@ class CurrentFamilyView(APIView):
         membership.family.name = new_name
         membership.family.save()
         return Response({'detail': 'Family updated', 'name': new_name})
+
+class RemoveFamilyMemberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'user_id': {'type': 'integer', 'description': 'ID of user to remove'},
+                },
+                'required': ['user_id'],
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="Member removed"),
+            403: OpenApiResponse(description="Not allowed"),
+            404: OpenApiResponse(description="User not found or not in family"),
+        }
+    )
+    def post(self, request):
+        current_user = request.user
+        user_id = request.data.get('user_id')
+
+        if user_id is None:
+            return Response({'detail': 'user_id is required'}, status=400)
+
+        try:
+            current_membership = FamilyMembership.objects.get(user=current_user)
+        except FamilyMembership.DoesNotExist:
+            return Response({'detail': 'You are not part of any family'}, status=404)
+
+        if current_membership.role != 'head':
+            return Response({'detail': 'Only head of family can remove members'}, status=403)
+
+        if user_id == current_user.id:
+            return Response({'detail': 'You cannot remove yourself'}, status=400)
+
+        try:
+            membership_to_remove = FamilyMembership.objects.get(user__id=user_id, family=current_membership.family)
+        except FamilyMembership.DoesNotExist:
+            return Response({'detail': 'User not found in your family'}, status=404)
+
+        membership_to_remove.delete()
+        return Response({'detail': 'Member removed successfully'})
