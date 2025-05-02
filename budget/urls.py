@@ -16,6 +16,7 @@ from .views import (
     ChangeFamilyMemberRoleView,
     LeaveFamilyView,
     DeleteFamilyView,
+AssignHeadView,
 )
 
 router = DefaultRouter()
@@ -36,4 +37,6 @@ urlpatterns = [
     path('family/members/change-role/', ChangeFamilyMemberRoleView.as_view(), name='change-family-member-role'),
     path('family/leave/', LeaveFamilyView.as_view(), name='leave-family'),
     path('family/delete/', DeleteFamilyView.as_view(), name='delete-family'),
+    path('family/assign-head/', AssignHeadView.as_view(), name='assign-head'),
+
 ]

@@ -396,3 +396,44 @@ class DeleteFamilyView(APIView):
 
         membership.family.delete()
         return Response({'detail': 'Family deleted'}, status=200)
+
+
+class AssignHeadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'user_id': {'type': 'integer', 'description': 'ID нового главы семьи'},
+                },
+                'required': ['user_id'],
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="New head assigned"),
+            403: OpenApiResponse(description="Only head can assign a new head"),
+            404: OpenApiResponse(description="User or membership not found"),
+        }
+    )
+    def post(self, request):
+        current_user = request.user
+        new_head_id = request.data.get('user_id')
+
+        current_membership = FamilyMembership.objects.filter(user=current_user).select_related('family').first()
+        if not current_membership or current_membership.role != 'head':
+            return Response({'detail': 'Only the head can assign a new head'}, status=403)
+
+        try:
+            new_head_membership = FamilyMembership.objects.get(user_id=new_head_id, family=current_membership.family)
+        except FamilyMembership.DoesNotExist:
+            return Response({'detail': 'User not found in your family'}, status=404)
+
+        current_membership.role = 'member'
+        current_membership.save()
+
+        new_head_membership.role = 'head'
+        new_head_membership.save()
+
+        return Response({'detail': f'User {new_head_membership.user.username} is now the head'})
