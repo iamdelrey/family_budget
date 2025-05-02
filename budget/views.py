@@ -372,3 +372,27 @@ class LeaveFamilyView(APIView):
 
         membership.delete()
         return Response({'detail': 'You have left the family'}, status=200)
+
+
+class DeleteFamilyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Family deleted"),
+            403: OpenApiResponse(description="Only head can delete the family"),
+            404: OpenApiResponse(description="User not in a family"),
+        }
+    )
+    def delete(self, request):
+        user = request.user
+
+        membership = FamilyMembership.objects.filter(user=user).select_related('family').first()
+        if not membership:
+            return Response({'detail': 'You are not in any family'}, status=404)
+
+        if membership.role != 'head':
+            return Response({'detail': 'Only the head can delete the family'}, status=403)
+
+        membership.family.delete()
+        return Response({'detail': 'Family deleted'}, status=200)

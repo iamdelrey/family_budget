@@ -14,7 +14,8 @@ from .views import (
     FamilyMembersView,
     RemoveFamilyMemberView,
     ChangeFamilyMemberRoleView,
-    LeaveFamilyView
+    LeaveFamilyView,
+    DeleteFamilyView,
 )
 
 router = DefaultRouter()
@@ -34,5 +35,5 @@ urlpatterns = [
     path('family/members/remove/', RemoveFamilyMemberView.as_view(), name='remove-family-member'),
     path('family/members/change-role/', ChangeFamilyMemberRoleView.as_view(), name='change-family-member-role'),
     path('family/leave/', LeaveFamilyView.as_view(), name='leave-family'),
-
+    path('family/delete/', DeleteFamilyView.as_view(), name='delete-family'),
 ]
