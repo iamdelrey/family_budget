@@ -27,6 +27,7 @@ class FamilyMemberViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return FamilyMember.objects.all().order_by('id')
 
+
 class FamilyMembersView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -38,7 +39,6 @@ class FamilyMembersView(APIView):
         members = FamilyMembership.objects.filter(family=membership.family).select_related('user')
         serializer = FamilyMemberDetailSerializer(members, many=True)
         return Response(serializer.data)
-
 
 
 class FamilyMemberDetailSerializer(serializers.ModelSerializer):
@@ -171,7 +171,6 @@ class JoinFamilyView(APIView):
         except InviteCode.DoesNotExist:
             return Response({'detail': 'Invalid or used code'}, status=400)
 
-        # Check if user already in family
         if FamilyMembership.objects.filter(user=request.user, family=invite.family).exists():
             return Response({'detail': 'Already a member of this family'}, status=400)
 
@@ -194,7 +193,7 @@ class CreateFamilyView(APIView):
         responses={201: OpenApiResponse(description="Family created")},
     )
     def post(self, request):
-        serializer = CreateFamilySerializer(data=request.data, context={'request': request})  # 💥 тут
+        serializer = CreateFamilySerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             family = serializer.save()
             FamilyMembership.objects.create(user=request.user, family=family, role='head')
@@ -248,6 +247,7 @@ class CurrentFamilyView(APIView):
         membership.family.save()
         return Response({'detail': 'Family updated', 'name': new_name})
 
+
 class RemoveFamilyMemberView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -292,3 +292,59 @@ class RemoveFamilyMemberView(APIView):
 
         membership_to_remove.delete()
         return Response({'detail': 'Member removed successfully'})
+
+
+class ChangeFamilyMemberRoleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'user_id': {'type': 'integer', 'description': 'ID of user to update'},
+                    'new_role': {'type': 'string', 'enum': ['member', 'head']},
+                },
+                'required': ['user_id', 'new_role'],
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="Role updated"),
+            403: OpenApiResponse(description="Not allowed"),
+            404: OpenApiResponse(description="User not found or not in family"),
+        }
+    )
+    def post(self, request):
+        current_user = request.user
+        user_id = request.data.get('user_id')
+        new_role = request.data.get('new_role')
+
+        if not user_id or not new_role:
+            return Response({'detail': 'user_id and new_role are required'}, status=400)
+
+        if new_role not in ['member', 'head']:
+            return Response({'detail': 'Invalid role'}, status=400)
+
+        try:
+            current_membership = FamilyMembership.objects.get(user=current_user)
+        except FamilyMembership.DoesNotExist:
+            return Response({'detail': 'You are not part of any family'}, status=404)
+
+        if current_membership.role != 'head':
+            return Response({'detail': 'Only the head can change roles'}, status=403)
+
+        if user_id == current_user.id:
+            return Response({'detail': 'You cannot change your own role'}, status=400)
+
+        try:
+            target_membership = FamilyMembership.objects.get(user__id=user_id, family=current_membership.family)
+        except FamilyMembership.DoesNotExist:
+            return Response({'detail': 'User not found in your family'}, status=404)
+
+        if new_role == 'head':
+            current_membership.role = 'member'
+            current_membership.save()
+
+        target_membership.role = new_role
+        target_membership.save()
+        return Response({'detail': 'Role updated'})
