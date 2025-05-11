@@ -22,12 +22,20 @@ class FamilyMember(models.Model):
 
 
 class Transaction(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
-    category = models.ForeignKey(BudgetCategory, on_delete=models.CASCADE)
-    member = models.ForeignKey(FamilyMember, on_delete=models.CASCADE)
+    INCOME = 'income'
+    EXPENSE = 'expense'
+    TRANSACTION_TYPE_CHOICES = [
+        (INCOME, 'Доход'),
+        (EXPENSE, 'Расход'),
+    ]
+
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    description = models.TextField(blank=True)
+    description = models.CharField(max_length=255, blank=True)
     date = models.DateField()
+    category = models.ForeignKey('BudgetCategory', on_delete=models.CASCADE)
+    member = models.ForeignKey('FamilyMembership', on_delete=models.CASCADE)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    type = models.CharField(max_length=10, choices=TRANSACTION_TYPE_CHOICES, default=EXPENSE)
 
     def __str__(self):
         return f"{self.amount} - {self.category.name}"
