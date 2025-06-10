@@ -263,45 +263,63 @@ class RemoveFamilyMemberView(APIView):
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'user_id': {'type': 'integer', 'description': 'ID of user to remove'},
+                    'user_id': {'type': 'integer', 'description': 'ID of membership to remove'},
                 },
                 'required': ['user_id'],
             }
         },
         responses={
             200: OpenApiResponse(description="Member removed"),
+            400: OpenApiResponse(description="Bad request"),
             403: OpenApiResponse(description="Not allowed"),
-            404: OpenApiResponse(description="User not found or not in family"),
+            404: OpenApiResponse(description="Member not found"),
         }
     )
     def post(self, request):
-        current_user = request.user
-        user_id = request.data.get('user_id')
+        membership_id = request.data.get('user_id')
 
-        if user_id is None:
-            return Response({'detail': 'user_id is required'}, status=400)
+        if membership_id is None:
+            return Response(
+                {'detail': 'user_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            current_membership = FamilyMembership.objects.get(user=current_user)
+            current_membership = FamilyMembership.objects.get(user=request.user)
         except FamilyMembership.DoesNotExist:
-            return Response({'detail': 'You are not part of any family'}, status=404)
+            return Response(
+                {'detail': 'You are not part of any family'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if current_membership.role != 'owner':
-            return Response({'detail': 'Only head of family can remove members'}, status=403)
+            return Response(
+                {'detail': 'Only the owner can remove members'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-        if user_id == current_user.id:
-            return Response({'detail': 'You cannot remove yourself'}, status=400)
+        if current_membership.pk == membership_id:
+            return Response(
+                {'detail': 'You cannot remove yourself'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             membership_to_remove = FamilyMembership.objects.get(
-                pk=user_id,
+                pk=membership_id,
                 family=current_membership.family
             )
         except FamilyMembership.DoesNotExist:
-            return Response({'detail': 'User not found in your family'}, status=404)
+            return Response(
+                {'detail': 'Member not found in your family'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         membership_to_remove.delete()
-        return Response({'detail': 'Member removed successfully'})
+        return Response(
+            {'detail': 'Member removed successfully'},
+            status=status.HTTP_200_OK
+        )
 
 
 class ChangeFamilyMemberRoleView(APIView):
@@ -312,7 +330,7 @@ class ChangeFamilyMemberRoleView(APIView):
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'user_id': {'type': 'integer', 'description': 'ID of user to update'},
+                    'user_id': {'type': 'integer', 'description': 'ID of membership to update'},
                     'new_role': {'type': 'string', 'enum': ['member', 'owner']},
                 },
                 'required': ['user_id', 'new_role'],
@@ -320,39 +338,57 @@ class ChangeFamilyMemberRoleView(APIView):
         },
         responses={
             200: OpenApiResponse(description="Role updated"),
+            400: OpenApiResponse(description="Bad request"),
             403: OpenApiResponse(description="Not allowed"),
-            404: OpenApiResponse(description="User not found or not in family"),
+            404: OpenApiResponse(description="Member not found"),
         }
     )
     def post(self, request):
-        current_user = request.user
-        user_id = request.data.get('user_id')
-        new_role = request.data.get('new_role')
+        membership_id = request.data.get('user_id')
+        new_role      = request.data.get('new_role')
 
-        if not user_id or not new_role:
-            return Response({'detail': 'user_id and new_role are required'}, status=400)
+        if membership_id is None or new_role is None:
+            return Response(
+                {'detail': 'user_id and new_role are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if new_role not in ['member', 'owner']:
-            return Response({'detail': 'Invalid role'}, status=400)
+            return Response(
+                {'detail': 'Invalid role'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            current_membership = FamilyMembership.objects.get(user=current_user)
+            current_membership = FamilyMembership.objects.get(user=request.user)
         except FamilyMembership.DoesNotExist:
-            return Response({'detail': 'You are not part of any family'}, status=404)
+            return Response(
+                {'detail': 'You are not part of any family'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if current_membership.role != 'owner':
-            return Response({'detail': 'Only the head can change roles'}, status=403)
+            return Response(
+                {'detail': 'Only the owner can change roles'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-        if user_id == current_user.id:
-            return Response({'detail': 'You cannot change your own role'}, status=400)
+        if current_membership.pk == membership_id:
+            return Response(
+                {'detail': 'You cannot change your own role'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             target_membership = FamilyMembership.objects.get(
-                pk=user_id,
+                pk=membership_id,
                 family=current_membership.family
             )
         except FamilyMembership.DoesNotExist:
-            return Response({'detail': 'User not found in your family'}, status=404)
+            return Response(
+                {'detail': 'Member not found in your family'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if new_role == 'owner':
             current_membership.role = 'member'
@@ -360,7 +396,8 @@ class ChangeFamilyMemberRoleView(APIView):
 
         target_membership.role = new_role
         target_membership.save()
-        return Response({'detail': 'Role updated'})
+
+        return Response({'detail': 'Role updated'}, status=status.HTTP_200_OK)
 
 
 class LeaveFamilyView(APIView):
