@@ -43,7 +43,11 @@ class Transaction(models.Model):
 
 class Family(models.Model):
     name = models.CharField(max_length=255)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_by = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='owned_family'
+    )
 
     def __str__(self):
         return self.name

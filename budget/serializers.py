@@ -13,8 +13,9 @@ class BudgetCategorySerializer(serializers.ModelSerializer):
         read_only_fields = ['user']
 
 class TransactionSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+
     class Meta:
         model = Transaction
-        fields = ['id', 'amount', 'description', 'date', 'category', 'member', 'user', 'type']
+        fields = ['id', 'amount', 'description', 'date', 'category', 'category_name', 'member', 'user', 'type']
         read_only_fields = ['user']
-

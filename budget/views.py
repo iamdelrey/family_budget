@@ -83,6 +83,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+
 class RegisterView(APIView):
 
     @extend_schema(
@@ -147,14 +148,21 @@ class InviteCreateView(APIView):
         }
     )
     def post(self, request):
-        user = request.user
-        try:
-            family = Family.objects.get(created_by=user)
-        except Family.DoesNotExist:
-            return Response({'detail': 'You are not the head of a family'}, status=403)
+        membership = FamilyMembership.objects.filter(
+            user=request.user,
+            role='owner'
+        ).select_related('family').first()
+
+        if not membership:
+            return Response(
+                {'detail': 'Только владелец (owner) семьи может генерировать приглашения'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        family = membership.family
 
         invite = InviteCode.objects.create(family=family)
-        return Response({'code': str(invite.code)})
+        return Response({'code': str(invite.code)}, status=status.HTTP_201_CREATED)
 
 
 class JoinFamilyView(APIView):
@@ -195,7 +203,7 @@ class CreateFamilyView(APIView):
         serializer = CreateFamilySerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             family = serializer.save()
-            FamilyMembership.objects.create(user=request.user, family=family, role='head')
+            FamilyMembership.objects.create(user=request.user, family=family, role='owner')
             return Response({"detail": "Family created", "family_id": family.id}, status=201)
         return Response(serializer.errors, status=400)
 
@@ -235,7 +243,7 @@ class CurrentFamilyView(APIView):
         if not membership:
             return Response({'detail': 'User is not part of any family'}, status=404)
 
-        if membership.role != 'head':
+        if membership.role != 'owner':
             return Response({'detail': 'Only the head can update family'}, status=403)
 
         new_name = request.data.get('name')
@@ -278,14 +286,17 @@ class RemoveFamilyMemberView(APIView):
         except FamilyMembership.DoesNotExist:
             return Response({'detail': 'You are not part of any family'}, status=404)
 
-        if current_membership.role != 'head':
+        if current_membership.role != 'owner':
             return Response({'detail': 'Only head of family can remove members'}, status=403)
 
         if user_id == current_user.id:
             return Response({'detail': 'You cannot remove yourself'}, status=400)
 
         try:
-            membership_to_remove = FamilyMembership.objects.get(user__id=user_id, family=current_membership.family)
+            membership_to_remove = FamilyMembership.objects.get(
+                pk=user_id,
+                family=current_membership.family
+            )
         except FamilyMembership.DoesNotExist:
             return Response({'detail': 'User not found in your family'}, status=404)
 
@@ -302,7 +313,7 @@ class ChangeFamilyMemberRoleView(APIView):
                 'type': 'object',
                 'properties': {
                     'user_id': {'type': 'integer', 'description': 'ID of user to update'},
-                    'new_role': {'type': 'string', 'enum': ['member', 'head']},
+                    'new_role': {'type': 'string', 'enum': ['member', 'owner']},
                 },
                 'required': ['user_id', 'new_role'],
             }
@@ -321,7 +332,7 @@ class ChangeFamilyMemberRoleView(APIView):
         if not user_id or not new_role:
             return Response({'detail': 'user_id and new_role are required'}, status=400)
 
-        if new_role not in ['member', 'head']:
+        if new_role not in ['member', 'owner']:
             return Response({'detail': 'Invalid role'}, status=400)
 
         try:
@@ -329,18 +340,21 @@ class ChangeFamilyMemberRoleView(APIView):
         except FamilyMembership.DoesNotExist:
             return Response({'detail': 'You are not part of any family'}, status=404)
 
-        if current_membership.role != 'head':
+        if current_membership.role != 'owner':
             return Response({'detail': 'Only the head can change roles'}, status=403)
 
         if user_id == current_user.id:
             return Response({'detail': 'You cannot change your own role'}, status=400)
 
         try:
-            target_membership = FamilyMembership.objects.get(user__id=user_id, family=current_membership.family)
+            target_membership = FamilyMembership.objects.get(
+                pk=user_id,
+                family=current_membership.family
+            )
         except FamilyMembership.DoesNotExist:
             return Response({'detail': 'User not found in your family'}, status=404)
 
-        if new_role == 'head':
+        if new_role == 'owner':
             current_membership.role = 'member'
             current_membership.save()
 
@@ -366,7 +380,7 @@ class LeaveFamilyView(APIView):
         if not membership:
             return Response({'detail': 'You are not in any family'}, status=404)
 
-        if membership.role == 'head':
+        if membership.role == 'owner':
             return Response({'detail': 'Head of family cannot leave. Assign new head first.'}, status=403)
 
         membership.delete()
@@ -390,7 +404,7 @@ class DeleteFamilyView(APIView):
         if not membership:
             return Response({'detail': 'You are not in any family'}, status=404)
 
-        if membership.role != 'head':
+        if membership.role != 'owner':
             return Response({'detail': 'Only the head can delete the family'}, status=403)
 
         membership.family.delete()
@@ -421,7 +435,7 @@ class AssignHeadView(APIView):
         new_head_id = request.data.get('user_id')
 
         current_membership = FamilyMembership.objects.filter(user=current_user).select_related('family').first()
-        if not current_membership or current_membership.role != 'head':
+        if not current_membership or current_membership.role != 'owner':
             return Response({'detail': 'Only the head can assign a new head'}, status=403)
 
         try:
@@ -432,7 +446,7 @@ class AssignHeadView(APIView):
         current_membership.role = 'member'
         current_membership.save()
 
-        new_head_membership.role = 'head'
+        new_head_membership.role = 'owner'
         new_head_membership.save()
 
         return Response({'detail': f'User {new_head_membership.user.username} is now the head'})
