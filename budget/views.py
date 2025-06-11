@@ -9,6 +9,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, filters
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+
+from .models import BudgetCategory, FamilyMembership
+from .serializers import BudgetCategorySerializer
+from .permissions import IsOwnerOrReadOnly
+
 
 from .models import FamilyMember, BudgetCategory, Transaction
 from .models import InviteCode, Family, FamilyMembership
@@ -17,7 +26,15 @@ from .serializers import FamilyMemberSerializer, BudgetCategorySerializer, Trans
 from .serializers_register import RegisterSerializer
 from .serializers_family import CreateFamilySerializer
 from rest_framework import serializers
-from .models import FamilyMembership
+from rest_framework import viewsets, filters, status
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, filters
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+
+from .models import Transaction, FamilyMembership
+from .serializers import TransactionSerializer
+from .permissions import IsOwnerOrReadOnly
 
 
 class FamilyMemberViewSet(viewsets.ModelViewSet):
@@ -52,36 +69,75 @@ class FamilyMemberDetailSerializer(serializers.ModelSerializer):
 
 class BudgetCategoryViewSet(viewsets.ModelViewSet):
     queryset = BudgetCategory.objects.all()
-    serializer_class = BudgetCategorySerializer
+    serializer_class   = BudgetCategorySerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
-
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
-    filterset_fields = ['name']
-    search_fields = ['name', 'description']
-    ordering_fields = ['id', 'name']
+    filter_backends    = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_fields   = ['name']
+    search_fields      = ['name', 'description']
+    ordering_fields    = ['id', 'name']
 
     def get_queryset(self):
-        return BudgetCategory.objects.filter(user=self.request.user).order_by('id')
+        membership = (
+            FamilyMembership.objects
+            .filter(user=self.request.user)
+            .select_related('family')
+            .first()
+        )
+        if not membership:
+            return BudgetCategory.objects.none()
+
+        family = membership.family
+
+        member_user_ids = (
+            FamilyMembership.objects
+            .filter(family=family)
+            .values_list('user_id', flat=True)
+        )
+
+        return (
+            BudgetCategory.objects
+            .filter(user__in=member_user_ids)
+            .order_by('id')
+        )
 
     def perform_create(self, serializer):
+        if not FamilyMembership.objects.filter(user=self.request.user).exists():
+            raise PermissionDenied('You must be part of a family to add categories')
+
         serializer.save(user=self.request.user)
 
 
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
-    serializer_class = TransactionSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
 
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
-    filterset_fields = ['amount', 'date', 'category', 'member']
-    search_fields = ['description']
-    ordering_fields = ['amount', 'date']
+    serializer_class   = TransactionSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    filter_backends    = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_fields   = ['amount', 'date', 'category']
+    search_fields      = ['description']
+    ordering_fields    = ['amount', 'date']
 
     def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user).order_by('id')
+        membership = (
+            FamilyMembership.objects
+            .filter(user=self.request.user)
+            .select_related('family')
+            .first()
+        )
+        if not membership:
+            return Transaction.objects.none()
+
+        return (
+            Transaction.objects
+            .filter(member__family=membership.family)
+            .order_by('date', 'id')
+        )
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        membership = FamilyMembership.objects.filter(user=self.request.user).first()
+        if not membership:
+            raise PermissionDenied('You must be part of a family to add transactions')
+        serializer.save(user=self.request.user, member=membership)
 
 
 class RegisterView(APIView):
